@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"ahtapot/scylla"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -20,7 +21,9 @@ var restoreCmd = &cobra.Command{
 		fmt.Printf("Consistency: %s\n", cfg.Consistency)
 		fmt.Printf("Format: %s\n", cfg.Format)
 
-		// TODO: Restore işlemini burada yazabilirsin
+		session, _ := scylla.CreateSession(scylla.CreateConfig(cfg))
+		defer session.Close()
+
 	},
 }
 

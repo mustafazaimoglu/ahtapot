@@ -1,10 +1,9 @@
 package cmd
 
 import (
-	"fmt"
-	"log"
-
 	"ahtapot/scylla"
+	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -23,22 +22,56 @@ var backupCmd = &cobra.Command{
 		fmt.Printf("Consistency: %s\n", cfg.Consistency)
 		fmt.Printf("Format: %s\n", cfg.Format)
 
-		scyllaConfig := scylla.ConnectionConfig{
-			Hosts:       cfg.Host,
-			Port:        cfg.Port,
-			Username:    cfg.User,
-			Password:    cfg.Password,
-			Keyspace:    cfg.Keyspace,
-			Consistency: cfg.Consistency,
-		}
-
-		session, err := scylla.CreateSession(scyllaConfig)
-		if err != nil {
-			log.Fatalf("HATA: %v", err)
-		}
+		session, _ := scylla.CreateSession(scylla.CreateConfig(cfg))
 		defer session.Close()
 
-		log.Println("Scylla bağlantısı başarılı!")
+		// var query = session.Query("select * from system.clients limit 2")
+
+		// // var query = session.Query("select * from alternator_zaimoglu2.zaimoglu2 LIMIT 2")
+
+		// if rows, err := query.Iter().SliceMap(); err == nil {
+		// 	for _, row := range rows {
+		// 		fmt.Printf("%v\n", row)
+		// 		fmt.Println(row["driver_name"])
+		// 	}
+		// } else {
+		// 	panic("Query error: " + err.Error())
+		// }
+
+		colQuery := `SELECT column_name FROM system_schema.columns WHERE keyspace_name = ? AND table_name = ?`
+		iter := session.Query(colQuery, cfg.Keyspace, cfg.Table).Iter()
+
+		var columns []string
+		var col string
+		for iter.Scan(&col) {
+			columns = append(columns, col)
+		}
+		if err := iter.Close(); err != nil {
+			fmt.Errorf("column fetch error: %w", err)
+		}
+		if len(columns) == 0 {
+			fmt.Errorf("no columns found")
+		}
+
+		// Ana SELECT sorgusu
+		query := fmt.Sprintf("SELECT %s FROM %s.%s limit 2", strings.Join(columns, ", "), cfg.Keyspace, cfg.Table)
+		dataIter := session.Query(query).PageSize(500).Iter()
+
+		// Satır satır oku
+		row := make(map[string]interface{})
+		for dataIter.MapScan(row) {
+			fmt.Println(row)
+			fmt.Println("Yeni satır:")
+			for _, c := range columns {
+				fmt.Printf("  %s: %v\n", c, row[c])
+			}
+			row = map[string]interface{}{} // temizle
+		}
+
+		if err := dataIter.Close(); err != nil {
+			fmt.Errorf("veri okuma hatası: %w", err)
+		}
+
 	},
 }
 

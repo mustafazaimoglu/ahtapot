@@ -1,6 +1,7 @@
 package scylla
 
 import (
+	"ahtapot/common"
 	"fmt"
 	"strings"
 	"time"
@@ -9,8 +10,8 @@ import (
 )
 
 type ConnectionConfig struct {
-	Hosts       string
-	Port        string
+	Hosts       []string
+	Port        int
 	Username    string
 	Password    string
 	Keyspace    string
@@ -19,8 +20,8 @@ type ConnectionConfig struct {
 
 // CreateSession returns an authenticated ScyllaDB session
 func CreateSession(cfg ConnectionConfig) (*gocql.Session, error) {
-	cluster := gocql.NewCluster(strings.Split(cfg.Hosts, ",")...)
-	cluster.Port = parsePort(cfg.Port)
+	cluster := gocql.NewCluster(cfg.Hosts...)
+	cluster.Port = cfg.Port
 	cluster.Keyspace = cfg.Keyspace
 	cluster.Authenticator = gocql.PasswordAuthenticator{
 		Username: cfg.Username,
@@ -64,4 +65,17 @@ func parseConsistency(level string) gocql.Consistency {
 		fmt.Println("Consisteny unknown! setted to ONE")
 		return gocql.One
 	}
+}
+
+func CreateConfig(cfg common.FlagConfig) ConnectionConfig {
+	scyllaConfig := ConnectionConfig{
+		Hosts:       strings.Split(cfg.Host, ","),
+		Port:        parsePort(cfg.Port),
+		Username:    cfg.User,
+		Password:    cfg.Password,
+		Keyspace:    cfg.Keyspace,
+		Consistency: cfg.Consistency,
+	}
+
+	return scyllaConfig
 }

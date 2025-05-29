@@ -1,9 +1,10 @@
 package main
 
 import (
-	"ahtapot/cmd"
 	"fmt"
 	"os"
+
+	"ahtapot/cmd"
 )
 
 func main() {
