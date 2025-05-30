@@ -2,7 +2,10 @@ package cmd
 
 import (
 	"ahtapot/scylla"
+	"encoding/json"
 	"fmt"
+	"log"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,16 +25,18 @@ var backupCmd = &cobra.Command{
 	Use:   "backup",
 	Short: "Runs backup operation",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Backup başlıyor...")
-		fmt.Printf("Host: %s\n", cfg.Host)
-		fmt.Printf("User: %s\n", cfg.User)
-		fmt.Printf("Password: %s\n", cfg.Password)
-		fmt.Printf("Keyspace: %s\n", cfg.Keyspace)
-		fmt.Printf("Table: %s\n", cfg.Table)
-		fmt.Printf("Port: %s\n", cfg.Port)
-		fmt.Printf("Consistency: %s\n", cfg.Consistency)
-		fmt.Printf("Format: %s\n", cfg.Format)
-		fmt.Println()
+		if false {
+			fmt.Println("Backup başlıyor...")
+			fmt.Printf("Host: %s\n", cfg.Host)
+			fmt.Printf("User: %s\n", cfg.User)
+			fmt.Printf("Password: %s\n", cfg.Password)
+			fmt.Printf("Keyspace: %s\n", cfg.Keyspace)
+			fmt.Printf("Table: %s\n", cfg.Table)
+			fmt.Printf("Port: %s\n", cfg.Port)
+			fmt.Printf("Consistency: %s\n", cfg.Consistency)
+			fmt.Printf("Format: %s\n", cfg.Format)
+			fmt.Println()
+		}
 
 		session, _ := scylla.CreateSession(scylla.CreateConfig(cfg))
 		defer session.Close()
@@ -111,18 +116,15 @@ var backupCmd = &cobra.Command{
 			columns = append(columns, Column{Name: colName, ClusteringOrder: clusteringOrder, Kind: kind, Position: pos, Type: colType})
 		}
 		if err := iter.Close(); err != nil {
-			fmt.Errorf("ERRRRRRRRRRRRRRRRR")
+			fmt.Println("ERRRRRRRRRRRRRRRRR")
 		}
 
 		if len(columns) == 0 {
-			fmt.Errorf("tablo bulunamadı veya sütun yok")
+			fmt.Println("tablo bulunamadı veya sütun yok")
 		}
 
 		// fmt.Println(columns)
 
-		// STATIC ANAHTAR KELIMESI EKLENECEK
-
-		// 2. Sütunları türüne göre ayır
 		var partitionColumns, clusteringColumns []Column
 		var otherCols []string
 
@@ -135,7 +137,10 @@ var backupCmd = &cobra.Command{
 			case "clustering":
 				clusteringColumns = append(clusteringColumns, col)
 				otherCols = append(otherCols, line)
-			default: // "regular", "static"
+			case "static":
+				line := fmt.Sprintf("    %s %s %s,", col.Name, col.Type, strings.ToUpper(col.Kind))
+				otherCols = append(otherCols, line)
+			default: // "regular"
 				otherCols = append(otherCols, line)
 			}
 		}
@@ -157,7 +162,7 @@ var backupCmd = &cobra.Command{
 			clusteringLine = append(clusteringLine, col.Name+" "+col.ClusteringOrder)
 		}
 
-		// 3. PRIMARY KEY kısmını oluştur
+		// KEY kısmınlarını oluştur
 		var pk, cl string
 		if len(clusteringKeys) > 0 {
 			pk = fmt.Sprintf("PRIMARY KEY ((%s), %s)", strings.Join(partitionKeys, ", "), strings.Join(clusteringKeys, ", "))
@@ -166,12 +171,72 @@ var backupCmd = &cobra.Command{
 			pk = fmt.Sprintf("PRIMARY KEY (%s)", strings.Join(partitionKeys, ", "))
 		}
 
+		query = "SELECT * FROM system_schema.tables WHERE keyspace_name = ? AND table_name = ?"
+		iter = session.Query(query, cfg.Keyspace, cfg.Table).Iter()
+
+		row := make(map[string]any)
+		for iter.MapScan(row) {
+			// fmt.Println(row)
+			// fmt.Println(row["bloom_filter_fp_chance"])
+			for key, value := range row {
+				if key == "flags" {
+					continue
+				}
+				// fmt.Printf("%s: %v\n", key, value)
+				// fmt.Println()
+				// fmt.Println(reflect.TypeOf(value))
+
+				if reflect.TypeOf(value).Kind() == reflect.Map { // MAP TIPINDE MI?
+					// fmt.Println(reflect.TypeOf(value))
+
+					elementOfValue := reflect.TypeOf(value).Elem() // ELEMENT OF MAP
+					if elementOfValue.Kind() == reflect.Slice || elementOfValue.Kind() == reflect.Array {
+						innerElementType := elementOfValue.Elem().Kind()
+						if innerElementType == reflect.Uint8 {
+							x, ok := value.(map[string][]uint8)
+							if !ok {
+								log.Fatal("type assertion failed: not a map[string][]byte")
+							}
+
+							for k, v := range x {
+								fmt.Println(reflect.TypeOf(v))
+								fmt.Println(k, v)
+								fmt.Println(k, string(v[:]))
+								// fmt.Println(k, hex.EncodeToString(v))
+
+								// BYTE TO STRING NEEDS FIX
+							}
+
+						}
+						// fmt.Println("Eleman tipi:", elementOfValue.Elem().Kind()) // KIND OF ELEMENT IN THE ARRAY OR SLICE
+
+					}
+					// else {
+					// 	fmt.Println("Eleman tipi alınamaz, çünkü slice/array değil")
+					// }
+
+					// fmt.Println(reflect.TypeOf(value).Elem().Kind())
+					// fmt.Println()
+
+					jsonBytes, err := json.Marshal(value)
+					if err != nil {
+						panic(err)
+					}
+					value = string(jsonBytes)
+				}
+
+				// fmt.Println(key, " = ", value)
+			}
+
+			row = map[string]any{} // rowu boşalt
+		}
+
 		// 4. Script'i birleştir
 		lines := append([]string{fmt.Sprintf("CREATE TABLE %s.%s (", cfg.Keyspace, cfg.Table)}, otherCols...)
 		lines = append(lines, fmt.Sprintf("    %s", pk), ") "+cl)
 
-		var finalScript = strings.Join(lines, "\n")
-		fmt.Println(finalScript)
+		// var finalScript = strings.Join(lines, "\n")
+		// fmt.Println(finalScript)
 
 	},
 }
