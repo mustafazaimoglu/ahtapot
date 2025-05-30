@@ -61,9 +61,15 @@ func parseConsistency(level string) gocql.Consistency {
 		return gocql.Any
 	case "ONE":
 		return gocql.One
+	case "TWO":
+		return gocql.Two
+	case "THREE":
+		return gocql.Three
+	case "LOCAL_ONE":
+		return gocql.LocalOne
 	default:
-		fmt.Println("Consisteny unknown! setted to ONE")
-		return gocql.One
+		fmt.Println("Consisteny unknown! setted to LOCAL_ONE")
+		return gocql.LocalOne
 	}
 }
 
