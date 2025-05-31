@@ -2,9 +2,9 @@ package cmd
 
 import (
 	"ahtapot/scylla"
-	"encoding/json"
+	"bytes"
+	"encoding/binary"
 	"fmt"
-	"log"
 	"reflect"
 	"sort"
 	"strconv"
@@ -87,6 +87,11 @@ var backupCmd = &cobra.Command{
 			row := make(map[string]any)
 			for dataIter.MapScan(row) {
 
+			_, err := f.WriteString(mapToSingleQuoteString(tags))
+								// if err != nil {
+								// 	panic(err)
+								// }
+
 				fmt.Println(row)
 				// fmt.Println("Yeni satır:")
 				// for _, c := range columns {
@@ -123,8 +128,6 @@ var backupCmd = &cobra.Command{
 			fmt.Println("tablo bulunamadı veya sütun yok")
 		}
 
-		// fmt.Println(columns)
-
 		var partitionColumns, clusteringColumns []Column
 		var otherCols []string
 
@@ -146,7 +149,6 @@ var backupCmd = &cobra.Command{
 		}
 
 		sort.Slice(partitionColumns, byPosition(partitionColumns))
-
 		sort.Slice(clusteringColumns, byPosition(clusteringColumns))
 
 		var partitionKeys, clusteringKeys []string
@@ -166,79 +168,102 @@ var backupCmd = &cobra.Command{
 		var pk, cl string
 		if len(clusteringKeys) > 0 {
 			pk = fmt.Sprintf("PRIMARY KEY ((%s), %s)", strings.Join(partitionKeys, ", "), strings.Join(clusteringKeys, ", "))
-			cl = fmt.Sprintf("WITH CLUSTERING ORDER BY (%s)", strings.Join(clusteringLine, ", "))
+			cl += fmt.Sprintf("CLUSTERING ORDER BY (%s)", strings.Join(clusteringLine, ", "))
 		} else {
 			pk = fmt.Sprintf("PRIMARY KEY (%s)", strings.Join(partitionKeys, ", "))
 		}
 
+		// DONT ASK ME ABOUT HOW I WROTE THIS PART... ONLY GOD KNOWS HOW THIS ONE WORKS
 		query = "SELECT * FROM system_schema.tables WHERE keyspace_name = ? AND table_name = ?"
 		iter = session.Query(query, cfg.Keyspace, cfg.Table).Iter()
+		var tableOpts []string
 
 		row := make(map[string]any)
 		for iter.MapScan(row) {
-			// fmt.Println(row)
-			// fmt.Println(row["bloom_filter_fp_chance"])
 			for key, value := range row {
-				if key == "flags" {
+				if key == "flags" || key == "keyspace_name" || key == "table_name" || key == "id" {
 					continue
 				}
-				// fmt.Printf("%s: %v\n", key, value)
-				// fmt.Println()
-				// fmt.Println(reflect.TypeOf(value))
 
-				if reflect.TypeOf(value).Kind() == reflect.Map { // MAP TIPINDE MI?
-					// fmt.Println(reflect.TypeOf(value))
-
-					elementOfValue := reflect.TypeOf(value).Elem() // ELEMENT OF MAP
+				if reflect.TypeOf(value).Kind() == reflect.Map {
+					elementOfValue := reflect.TypeOf(value).Elem()
 					if elementOfValue.Kind() == reflect.Slice || elementOfValue.Kind() == reflect.Array {
-						innerElementType := elementOfValue.Elem().Kind()
-						if innerElementType == reflect.Uint8 {
-							x, ok := value.(map[string][]uint8)
-							if !ok {
-								log.Fatal("type assertion failed: not a map[string][]byte")
+						if elementOfValue.Elem().Kind() == reflect.Uint8 {
+							assertedMap, _ := value.(map[string][]byte)
+							for k, v := range assertedMap {
+								parsedString := parseExtensionsColumn(v)
+								tableOpts = append(tableOpts, fmt.Sprintf("%s = %s", k, mapToSingleQuoteString(parsedString)))
 							}
-
-							for k, v := range x {
-								fmt.Println(reflect.TypeOf(v))
-								fmt.Println(k, v)
-								fmt.Println(k, string(v[:]))
-								// fmt.Println(k, hex.EncodeToString(v))
-
-								// BYTE TO STRING NEEDS FIX
-							}
-
 						}
-						// fmt.Println("Eleman tipi:", elementOfValue.Elem().Kind()) // KIND OF ELEMENT IN THE ARRAY OR SLICE
-
+					} else {
+						assertedValue := value.(map[string]string)
+						tableOpts = append(tableOpts, fmt.Sprintf("%s = %s", key, mapToSingleQuoteString(assertedValue)))
 					}
-					// else {
-					// 	fmt.Println("Eleman tipi alınamaz, çünkü slice/array değil")
-					// }
-
-					// fmt.Println(reflect.TypeOf(value).Elem().Kind())
-					// fmt.Println()
-
-					jsonBytes, err := json.Marshal(value)
-					if err != nil {
-						panic(err)
+				} else {
+					if str, ok := value.(string); ok {
+						value = fmt.Sprintf("'%s'", str)
 					}
-					value = string(jsonBytes)
+					tableOpts = append(tableOpts, fmt.Sprintf("%s = %v", key, value))
 				}
-
-				// fmt.Println(key, " = ", value)
 			}
-
 			row = map[string]any{} // rowu boşalt
+		}
+
+		sort.Strings(tableOpts)
+
+		for i, val := range tableOpts {
+			if i == 0 && len(cl) == 0 {
+				tableOpts[i] = "     " + val
+			} else {
+				tableOpts[i] = "     AND " + val
+			}
 		}
 
 		// 4. Script'i birleştir
 		lines := append([]string{fmt.Sprintf("CREATE TABLE %s.%s (", cfg.Keyspace, cfg.Table)}, otherCols...)
-		lines = append(lines, fmt.Sprintf("    %s", pk), ") "+cl)
+		lines = append(lines, fmt.Sprintf("    %s", pk), ") WITH "+cl)
+		lines = append(lines, tableOpts...)
 
-		// var finalScript = strings.Join(lines, "\n")
-		// fmt.Println(finalScript)
+		var finalScript = strings.Join(lines, "\n") + ";"
+		fmt.Println(finalScript)
 
 	},
+}
+
+func parseExtensionsColumn(data []byte) map[string]string {
+	buf := bytes.NewReader(data)
+	result := make(map[string]string)
+
+	var numElements int32
+	binary.Read(buf, binary.LittleEndian, &numElements)
+
+	for i := 0; i < int(numElements); i++ {
+		var keyLen int32
+		binary.Read(buf, binary.LittleEndian, &keyLen)
+
+		keyBytes := make([]byte, keyLen)
+		buf.Read(keyBytes)
+		key := string(keyBytes)
+
+		var valLen int32
+		binary.Read(buf, binary.LittleEndian, &valLen)
+
+		valBytes := make([]byte, valLen)
+		buf.Read(valBytes)
+		val := string(valBytes)
+
+		result[key] = val
+	}
+
+	return result
+}
+
+func mapToSingleQuoteString(m map[string]string) string {
+	var parts []string
+	for k, v := range m {
+		parts = append(parts, fmt.Sprintf("'%s': '%s'", k, v))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
 }
 
 func byPosition(columns []Column) func(i, j int) bool {
