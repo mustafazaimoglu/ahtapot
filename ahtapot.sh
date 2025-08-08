@@ -28,7 +28,8 @@ print_help() {
     echo "  --port, -P              Port number (default: 9042)"
     echo "  --username, -u          Username (default: cassandra)"
     echo "  --password, -p          Password (default: cassandra)"
-    echo "  --no-schema, -S         Do not restore schema"
+    echo "  --no-schema, -S         Do not restore schema (Only restore data)"
+    echo "  --no-data, -D           Do not backup/restore data - (Only schema)"
     echo "  --all-keyspaces, -A     All keyspaces"
     echo "  --keyspace, -k          Keyspace name"
     echo "  --table, -t             Table name"
@@ -136,7 +137,7 @@ backup_table() {
     local backup_path="$full_path/dump"
     local log_path="$full_path/operation"
 
-    echo "> BACKUP TABLE: $keyspace_name.$table_name"
+    echo "> BACKUP TABLE DATA: $keyspace_name.$table_name"
     $DSBULK unload -u $USERNAME -p $PASSWORD -h $HOST -port $PORT -cl $CONSISTENCY -k $keyspace_name -t $table_name -url $backup_path -c $FORMAT -logDir $log_path
     echo ""
 }
@@ -171,7 +172,7 @@ restore_table() {
     local log_path=""$main_dir"_restore_logs/$keyspace_name/$table_name"
     mkdir -p $log_path
 
-    echo "> RESTORE TABLE: $keyspace_name.$table_name"
+    echo "> RESTORE TABLE DATA: $keyspace_name.$table_name"
     $DSBULK load -u $USERNAME -p $PASSWORD -h $HOST -port $PORT -cl $CONSISTENCY -k $keyspace_name -t $table_name -url $backup_path -c $FORMAT -logDir $log_path
     echo ""
 }
@@ -182,6 +183,7 @@ PORT="9042"
 USERNAME="cassandra"
 PASSWORD="cassandra"
 NO_SCHEMA="false"
+NO_DATA="false"
 FORMAT="json"
 CONSISTENCY="LOCAL_ONE"
 
@@ -193,6 +195,7 @@ while [[ "$#" -gt 0 ]]; do
         --username|-u) USERNAME="$2"; shift ;;
         --password|-p) PASSWORD="$2"; shift ;;
         --no-schema|-S) NO_SCHEMA=true; ;;
+        --no-data|-D) NO_DATA=true; ;;
         --all-keyspaces|-A) ALL_KEYSPACES=true; ;;
         --keyspace|-k) KEYSPACE="$2"; shift ;;
         --table|-t) TABLE="$2"; shift ;;
@@ -303,7 +306,10 @@ if [[ "$OPERATION" == "backup" ]]; then
             for tb in "${EXISTING_TABLES_IN_KEYSPACE[@]}"; do
                 create_directories_for_table $DIRECTORY $ks $tb
                 backup_schema_table $DIRECTORY $ks $tb
-                backup_table $DIRECTORY $ks $tb
+
+                if [[ "$NO_DATA" == "false" ]]; then
+                    backup_table $DIRECTORY $ks $tb
+                fi
             done
         done
     elif [[ "$OPERATION_MODE" -eq 2 ]]; then
@@ -321,7 +327,10 @@ if [[ "$OPERATION" == "backup" ]]; then
         for tb in "${EXISTING_TABLES_IN_KEYSPACE[@]}"; do
             create_directories_for_table $DIRECTORY $KEYSPACE $tb
             backup_schema_table $DIRECTORY $KEYSPACE $tb
-            backup_table $DIRECTORY $KEYSPACE $tb
+
+            if [[ "$NO_DATA" == "false" ]]; then
+                backup_table $DIRECTORY $KEYSPACE $tb
+            fi
         done
     elif [[ "$OPERATION_MODE" -eq 3 ]]; then
         if [[ ! " ${EXISTING_KEYSPACES[@]} " =~ " ${KEYSPACE} " ]]; then
@@ -342,7 +351,10 @@ if [[ "$OPERATION" == "backup" ]]; then
 
         create_directories_for_table $DIRECTORY $KEYSPACE $TABLE
         backup_schema_table $DIRECTORY $KEYSPACE $TABLE
-        backup_table $DIRECTORY $KEYSPACE $TABLE
+
+        if [[ "$NO_DATA" == "false" ]]; then
+            backup_table $DIRECTORY $KEYSPACE $TABLE
+        fi
     fi
 elif [[ "$OPERATION" == "restore" ]]; then
     if [[ ! -d "$DIRECTORY" ]]; then
@@ -353,6 +365,11 @@ elif [[ "$OPERATION" == "restore" ]]; then
         exit 1
     elif [[ ! -f "$DIRECTORY/ahtapot" ]]; then
         echo "ERROR > This is not a valid backup!"
+        exit 1
+    fi
+
+    if [[ "$NO_DATA" == true && "$NO_SCHEMA" == true ]]; then
+        echo "ERROR > -D,--no-data and -S,--no-schema cannot be used together!"
         exit 1
     fi
 
@@ -378,7 +395,10 @@ elif [[ "$OPERATION" == "restore" ]]; then
                 if [[ "$NO_SCHEMA" == "false" ]]; then
                     restore_schema_table $DIRECTORY $ksr $tbr
                 fi
-                restore_table $DIRECTORY $ksr $tbr
+
+                if [[ "$NO_DATA" == "false" ]]; then
+                    restore_table $DIRECTORY $ksr $tbr
+                fi
             done
         done
     elif [[ "$OPERATION_MODE" -eq 2 ]]; then
@@ -398,7 +418,10 @@ elif [[ "$OPERATION" == "restore" ]]; then
             if [[ "$NO_SCHEMA" == "false" ]]; then
                 restore_schema_table $DIRECTORY $KEYSPACE $tbr
             fi
-            restore_table $DIRECTORY $KEYSPACE $tbr
+            
+            if [[ "$NO_DATA" == "false" ]]; then
+                restore_table $DIRECTORY $KEYSPACE $tbr
+            fi
         done
     elif [[ "$OPERATION_MODE" -eq 3 ]]; then
         if [[ ! " ${EXISTING_KEYSPACES_RESTORE[@]} " =~ " ${KEYSPACE} " ]]; then
@@ -418,10 +441,14 @@ elif [[ "$OPERATION" == "restore" ]]; then
             restore_schema_keyspace $DIRECTORY $KEYSPACE
             restore_schema_table $DIRECTORY $KEYSPACE $TABLE
         fi
-        restore_table $DIRECTORY $KEYSPACE $TABLE
+        
+        if [[ "$NO_DATA" == "false" ]]; then
+            restore_table $DIRECTORY $KEYSPACE $TABLE
+        fi
     fi
 else
     echo "ERROR > Operation type must be either 'backup' or 'restore'."
     print_help
     exit 1
 fi
+#Coded By MZ
