@@ -20,30 +20,30 @@ print_parameters() {
 }
 
 print_help() {
-    echo "Kullanım:"
-    echo "  $0 [parametreler]"
+    echo "Usage:"
+    echo "  $0 [parameters]"
     echo ""
-    echo "Parametreler:"
-    echo "  --host, -h              Host adresi (varsayılan: 127.0.0.1)"
-    echo "  --port, -P              Port numarası (varsayılan: 9042)"
-    echo "  --username, -u          Kullanıcı adı (varsayılan: cassandra)"
-    echo "  --password, -p          Şifre (varsayılan: cassandra)"
-    echo "  --no-schema, -S         Şema restore etme"
-    echo "  --all-keyspaces, -A     Tüm Keyspaceler"
-    echo "  --keyspace, -k          Keyspace adı"
-    echo "  --table, -t             Tablo adı"
-    echo "  --format, -f            Format (json | csv, varsayılan: json)"
-    echo "  --directory, -d         Dizin yolu (backup için hedef dizin, restore için kaynak dizin)"
-    echo "  --operation, -o         İşlem tipi (backup | restore) (zorunlu)"
-    echo "  --consistency, -c       Tutarlılık seviyesi (ANY | LOCAL_ONE | ONE | TWO | THREE | LOCAL_QUORUM | QUORUM | EACH_QUORUM | ALL)"
-    echo "  --help, -H              Yardım"
+    echo "Parameters:"
+    echo "  --host, -h              Host address (default: 127.0.0.1)"
+    echo "  --port, -P              Port number (default: 9042)"
+    echo "  --username, -u          Username (default: cassandra)"
+    echo "  --password, -p          Password (default: cassandra)"
+    echo "  --no-schema, -S         Do not restore schema"
+    echo "  --all-keyspaces, -A     All keyspaces"
+    echo "  --keyspace, -k          Keyspace name"
+    echo "  --table, -t             Table name"
+    echo "  --format, -f            Format (json | csv) (default: json)"
+    echo "  --directory, -d         Directory path (target for backup, source for restore)"
+    echo "  --operation, -o         Operation type (backup | restore) (required)"
+    echo "  --consistency, -c       Consistency level (ANY | LOCAL_ONE | ONE | TWO | THREE | LOCAL_QUORUM | QUORUM | EACH_QUORUM | ALL) (default: LOCAL_ONE)"
+    echo "  --help, -H              Help"
     echo ""
 }
 
 check_connection(){
     local output
     if ! output=$(cqlsh "$HOST" "$PORT" -u "$USERNAME" -p "$PASSWORD" -e "SELECT version FROM system.versions LIMIT 1"); then
-        echo "ERROR > Cassandra bağlantısı başarısız. Bağlantı bilgilerini kontrol edin." >&2
+        echo "ERROR > Connection failed. Please check the connection details." >&2
         exit 1
     fi
 }
@@ -85,7 +85,8 @@ create_ahtapot_file() {
 
     mkdir -p $main_dir
     touch $file
-    echo "Coded By MZ" > $file
+    echo $FORMAT > $file
+    echo "Coded By MZ" >> $file
 }
 
 create_directories_for_keyspace() {
@@ -104,22 +105,24 @@ create_directories_for_table() {
     mkdir -p $main_dir/$keyspace_name/$table_name/operation
 }
 
-get_describe_script_keyspace() {
+backup_schema_keyspace() {
     local main_dir="$1"
     local keyspace_name="$2"
     local full_path="$main_dir/$keyspace_name"
 
+    echo "> BACKUP KEYSPACE SCHEMA : $keyspace_name"
     cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "DESC KEYSPACE \"$keyspace_name\"" 2>/dev/null | head -n 3 > $full_path/keyspace.cql 
     cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "DESC KEYSPACE \"$keyspace_name\"" 2>/dev/null > $full_path/keyspace_full.cql 
 }
 
-get_describe_script_table() {
+backup_schema_table() {
     local main_dir="$1"
     local keyspace_name="$2"
     local table_name="$3"
 
     local full_path="$main_dir/$keyspace_name/$table_name"
 
+    echo "> BACKUP TABLE SCHEMA: $keyspace_name.$table_name"
     cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "DESC TABLE \"$keyspace_name\".\"$table_name\"" > $full_path/table.cql 2>/dev/null
 }
 
@@ -198,7 +201,7 @@ while [[ "$#" -gt 0 ]]; do
         --operation|-o) OPERATION="$2"; shift ;;
         --consistency|-c) CONSISTENCY="$2"; shift ;;
         --help|-H) print_help; exit 0 ;;
-        *) echo "❌ Bilinmeyen parametre: $1"; print_help; exit 1 ;;
+        *) echo "❌ Unknown parameter: $1"; print_help; exit 1 ;;
     esac
     shift
 done
@@ -207,13 +210,13 @@ done
 
 # --operation zorunlu
 if [[ -z "$OPERATION" ]]; then
-    echo "ERROR > İşlem tipi zorunludur!"
+    echo "ERROR > Operation type is mandatory!"
     exit 1
 fi
 
 # --directory zorunlu
 if [[ -z "$DIRECTORY" ]]; then
-    echo "ERROR > Backup/Restore dizini zorunludur!"
+    echo "ERROR > Backup/Restore directory is mandatory!"
     exit 1
 fi
 
@@ -222,7 +225,7 @@ OPERATION_MODE=0;
 # 1 = ALL KEYSPACES, 2 = SPECIFIC KEYSPACE, 3 = SPECIFIC TABLE 
 if [[ "$ALL_KEYSPACES" == true ]]; then
     if [[ -n "$KEYSPACE" || -n "$TABLE" ]]; then
-        echo "ERROR > --all-keyspaces ile birlikte --keyspace veya --table kullanılamaz."
+        echo "ERROR > --keyspace or --table cannot be used together with --all-keyspaces."
         exit 1
     fi
     OPERATION_MODE=1;
@@ -231,11 +234,11 @@ elif [[ -n "$KEYSPACE" && -z "$TABLE" ]]; then
 elif [[ -n "$KEYSPACE" && -n "$TABLE" ]]; then
     OPERATION_MODE=3;
 else
-    echo "ERROR > Geçerli bir parametre kombinasyonu verilmedi."
-    echo "Aşağıdaki üç senaryodan sadece biri geçerli olabilir:"
-    echo "     1) --all-keyspaces                    → Tüm keyspaceler için"
-    echo "     2) --keyspace KEYSPACE                → Belirli keyspace içindeki tüm tablolar"
-    echo "     3) --keyspace KEYSPACE --table TABLE  → Belirli bir tablo"
+    echo "ERROR > Invalid parameter combination."
+    echo "Only one of the following is allowed:"
+    echo "  1) --all-keyspaces                    # For all keyspaces"
+    echo "  2) --keyspace KEYSPACE                # All tables in the specified keyspace"
+    echo "  3) --keyspace KEYSPACE --table TABLE  # A specific table"
     exit 1
 fi
 
@@ -246,8 +249,8 @@ case "$CONSISTENCY" in
     :
     ;;
   *)
-    echo "ERROR > Geçersiz tutaralılık seviyesi değeri!" 
-    echo "Geçerli tutarlılık seviyesi değerleri (ANY | LOCAL_ONE | ONE | TWO | THREE | LOCAL_QUORUM | QUORUM | EACH_QUORUM | ALL)"
+    echo "ERROR > Invalid consistency level!"
+    echo "Valid consistency levels are: (ANY | LOCAL_ONE | ONE | TWO | THREE | LOCAL_QUORUM | QUORUM | EACH_QUORUM | ALL)"
     exit 1
     ;;
 esac
@@ -266,8 +269,8 @@ if [[ "$OPERATION" == "backup" ]]; then
         :
         ;;
     *)
-        echo "ERROR > Geçersiz format tipi!" 
-        echo "Geçerli format tipleri (json | csv)"
+        echo "ERROR > Invalid format type!"
+        echo "Valid format types are: (json | csv)"
         exit 1
         ;;
     esac
@@ -284,7 +287,7 @@ if [[ "$OPERATION" == "backup" ]]; then
     #       - operation
 
     # BACKUP LOGIC
-    create_ahtapot_file $DIRECTORY
+    create_ahtapot_file $DIRECTORY 
 
     declare -a EXISTING_KEYSPACES
     get_existing_keyspaces_from_db EXISTING_KEYSPACES
@@ -295,11 +298,11 @@ if [[ "$OPERATION" == "backup" ]]; then
             get_tables_in_keyspace_from_db "$ks" EXISTING_TABLES_IN_KEYSPACE
 
             create_directories_for_keyspace $DIRECTORY $ks
-            get_describe_script_keyspace $DIRECTORY $ks
+            backup_schema_keyspace $DIRECTORY $ks
 
             for tb in "${EXISTING_TABLES_IN_KEYSPACE[@]}"; do
                 create_directories_for_table $DIRECTORY $ks $tb
-                get_describe_script_table $DIRECTORY $ks $tb
+                backup_schema_table $DIRECTORY $ks $tb
                 backup_table $DIRECTORY $ks $tb
             done
         done
@@ -313,11 +316,11 @@ if [[ "$OPERATION" == "backup" ]]; then
         get_tables_in_keyspace_from_db "$KEYSPACE" EXISTING_TABLES_IN_KEYSPACE
 
         create_directories_for_keyspace $DIRECTORY $KEYSPACE
-        get_describe_script_keyspace $DIRECTORY $KEYSPACE
+        backup_schema_keyspace $DIRECTORY $KEYSPACE
 
         for tb in "${EXISTING_TABLES_IN_KEYSPACE[@]}"; do
             create_directories_for_table $DIRECTORY $KEYSPACE $tb
-            get_describe_script_table $DIRECTORY $KEYSPACE $tb
+            backup_schema_table $DIRECTORY $KEYSPACE $tb
             backup_table $DIRECTORY $KEYSPACE $tb
         done
     elif [[ "$OPERATION_MODE" -eq 3 ]]; then
@@ -335,10 +338,10 @@ if [[ "$OPERATION" == "backup" ]]; then
         fi
         
         create_directories_for_keyspace $DIRECTORY $KEYSPACE
-        get_describe_script_keyspace $DIRECTORY $KEYSPACE
+        backup_schema_keyspace $DIRECTORY $KEYSPACE
 
         create_directories_for_table $DIRECTORY $KEYSPACE $TABLE
-        get_describe_script_table $DIRECTORY $KEYSPACE $TABLE
+        backup_schema_table $DIRECTORY $KEYSPACE $TABLE
         backup_table $DIRECTORY $KEYSPACE $TABLE
     fi
 elif [[ "$OPERATION" == "restore" ]]; then
@@ -353,14 +356,17 @@ elif [[ "$OPERATION" == "restore" ]]; then
         exit 1
     fi
 
+    check_connection
+
     # RESTORE LOGIC
+    FORMAT=$(head -n 1 $DIRECTORY/ahtapot)
+    echo "Restore format set to '$FORMAT' because backup was taken in '$FORMAT' format!"
+
     declare -a EXISTING_KEYSPACES_RESTORE
     get_directories_from_dir $DIRECTORY EXISTING_KEYSPACES_RESTORE
 
     if [[ "$OPERATION_MODE" -eq 1 ]]; then
         for ksr in "${EXISTING_KEYSPACES_RESTORE[@]}"; do
-            echo "-- $ksr"
-
             declare -a EXISTING_TABLES_IN_KEYSPACE_RESTORE
             get_directories_from_dir "$DIRECTORY/$ksr" EXISTING_TABLES_IN_KEYSPACE_RESTORE
 
@@ -369,7 +375,6 @@ elif [[ "$OPERATION" == "restore" ]]; then
             fi
 
             for tbr in "${EXISTING_TABLES_IN_KEYSPACE_RESTORE[@]}"; do
-                echo $tbr
                 if [[ "$NO_SCHEMA" == "false" ]]; then
                     restore_schema_table $DIRECTORY $ksr $tbr
                 fi
@@ -416,7 +421,7 @@ elif [[ "$OPERATION" == "restore" ]]; then
         restore_table $DIRECTORY $KEYSPACE $TABLE
     fi
 else
-    echo "ERROR > İşlem tipi sadece 'backup' veya 'restore' olabilir."
+    echo "ERROR > Operation type must be either 'backup' or 'restore'."
     print_help
     exit 1
 fi
