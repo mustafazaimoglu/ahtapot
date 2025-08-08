@@ -177,6 +177,16 @@ restore_table() {
     echo ""
 }
 
+# FILE STRUCTURE:
+# directory_name
+#   keyspace_name
+#     keyspace.cql
+#     keyspace_full.cql
+#     table_name 
+#       - table.cql
+#       - dump
+#       - operation
+
 # Varsayılanlar
 HOST="127.0.0.1"
 PORT="9042"
@@ -209,6 +219,7 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+# print parameters
 # print_parameters
 
 # --operation zorunlu
@@ -278,16 +289,12 @@ if [[ "$OPERATION" == "backup" ]]; then
         ;;
     esac
 
-    check_connection
+    if [[ "$NO_SCHEMA" == "true" ]]; then
+        echo "WARNING > -S,--no-schema parameter ignored for operation backup!"
+    fi
 
-    # FILE STRUCTURE:
-    # directory_name
-    #   keyspace_name
-    #     keyspace.cql
-    #     table_name 
-    #       - table.cql
-    #       - dump
-    #       - operation
+    # CHECK CONNECTION
+    check_connection
 
     # BACKUP LOGIC
     create_ahtapot_file $DIRECTORY 
@@ -373,6 +380,7 @@ elif [[ "$OPERATION" == "restore" ]]; then
         exit 1
     fi
 
+    # CHECK CONNECTION
     check_connection
 
     # RESTORE LOGIC
