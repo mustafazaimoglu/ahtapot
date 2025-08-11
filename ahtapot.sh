@@ -111,7 +111,7 @@ backup_schema_keyspace() {
     local keyspace_name="$2"
     local full_path="$main_dir/$keyspace_name"
 
-    echo "> BACKUP KEYSPACE SCHEMA : $keyspace_name"
+    echo ">>> BACKUP KEYSPACE SCHEMA : $keyspace_name"
     cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "DESC KEYSPACE \"$keyspace_name\"" 2>/dev/null | head -n 3 > $full_path/keyspace.cql 
     cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "DESC KEYSPACE \"$keyspace_name\"" 2>/dev/null > $full_path/keyspace_full.cql 
 }
@@ -123,7 +123,7 @@ backup_schema_table() {
 
     local full_path="$main_dir/$keyspace_name/$table_name"
 
-    echo "> BACKUP TABLE SCHEMA: $keyspace_name.$table_name"
+    echo ">>> BACKUP TABLE SCHEMA: $keyspace_name.$table_name"
     cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "DESC TABLE \"$keyspace_name\".\"$table_name\"" > $full_path/table.cql 2>/dev/null
 }
 
@@ -137,7 +137,7 @@ backup_table() {
     local backup_path="$full_path/dump"
     local log_path="$full_path/operation"
 
-    echo "> BACKUP TABLE DATA: $keyspace_name.$table_name"
+    echo ">>> BACKUP TABLE DATA: $keyspace_name.$table_name"
     $DSBULK unload -u $USERNAME -p $PASSWORD -h $HOST -port $PORT -cl $CONSISTENCY -k $keyspace_name -t $table_name -url $backup_path -c $FORMAT -logDir $log_path
     echo ""
 }
@@ -148,7 +148,7 @@ restore_schema_keyspace() {
     
     local ddl_file="$main_dir/$keyspace_name/keyspace.cql"
 
-    echo "> RESTORE KEYSPACE SCHEMA : $keyspace_name"
+    echo ">>> RESTORE KEYSPACE SCHEMA : $keyspace_name"
     cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -f $ddl_file
 }
 
@@ -159,7 +159,7 @@ restore_schema_table() {
     
     local ddl_file="$main_dir/$keyspace_name/$table_name/table.cql"
 
-    echo "> RESTORE TABLE SCHEMA: $keyspace_name.$table_name"
+    echo ">>> RESTORE TABLE SCHEMA: $keyspace_name.$table_name"
     cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -f $ddl_file
 }
 
@@ -172,7 +172,7 @@ restore_table() {
     local log_path=""$main_dir"_restore_logs/$keyspace_name/$table_name"
     mkdir -p $log_path
 
-    echo "> RESTORE TABLE DATA: $keyspace_name.$table_name"
+    echo ">>> RESTORE TABLE DATA: $keyspace_name.$table_name"
     $DSBULK load -u $USERNAME -p $PASSWORD -h $HOST -port $PORT -cl $CONSISTENCY -k $keyspace_name -t $table_name -url $backup_path -c $FORMAT -logDir $log_path
     echo ""
 }
