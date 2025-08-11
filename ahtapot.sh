@@ -1,6 +1,7 @@
 #!/bin/bash
 echo ".....::::: AHTAPOT :::::....."
 
+# Set dsbluk path correctly and make sure it is executable
 DSBULK=dsbulk-1.11.0/bin/dsbulk
 # echo $($DSBULK --version)
 
@@ -222,6 +223,12 @@ done
 
 # print parameters
 # print_parameters
+
+# dsbluk check
+if [ ! -f "$DSBULK" ] || [ ! -x "$DSBULK" ]; then
+    echo "ERROR > dsbulk executable not found or not executable!"
+    exit 1
+fi
 
 # --operation zorunlu
 if [[ -z "$OPERATION" ]]; then
