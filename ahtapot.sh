@@ -196,6 +196,7 @@ NO_SCHEMA="false"
 NO_DATA="false"
 FORMAT="json"
 CONSISTENCY="LOCAL_ONE"
+START_TIME=$(date +%s)
 
 # Parametreleri oku
 while [[ "$#" -gt 0 ]]; do
@@ -458,5 +459,21 @@ else
     echo "ERROR > Operation type must be either 'backup' or 'restore'."
     print_help
     exit 1
+fi
+
+END_TIME=$(date +%s)
+DURATION=$((END_TIME - START_TIME))
+
+# Süreyi saat:dakika:saniye formatına çevir
+HOURS=$((DURATION / 3600))
+MINUTES=$(( (DURATION % 3600) / 60 ))
+SECONDS=$((DURATION % 60))
+
+# Formatlı çıktı
+printf -v FORMATTED "%02d:%02d:%02d" "$HOURS" "$MINUTES" "$SECONDS" 
+echo -e "\e[32m${OPERATION^^} Completed!\e[0m -> \e[36mDuration: $FORMATTED\e[0m"
+
+if [[ "$OPERATION" == "backup" ]]; then
+    echo "Duration: $FORMATTED" >> $DIRECTORY/ahtapot
 fi
 #Coded By MZ
