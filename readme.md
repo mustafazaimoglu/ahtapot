@@ -69,8 +69,8 @@ Küçük ve orta ölçekli ortamlar için idealdir.
 2. Belirli Bir Keyspace’i Yedekleme
     ```
     ./ahtapot.sh -h 127.0.0.1 -P 9042 -u cassandra -p cassandra \
-    --keyspace my_keyspace \
-    --directory ./backup_myks \
+    -k my_keyspace \
+    -d ./backup_myks \
     -f csv \
     -o backup
     ```
@@ -78,9 +78,9 @@ Küçük ve orta ölçekli ortamlar için idealdir.
 3. Belirli Bir Tabloyu Yedekleme
     ```
     ./ahtapot.sh -h 127.0.0.1 -P 9042 -u cassandra -p cassandra \
-    --keyspace my_keyspace \
-    --table my_table \
-    --directory ./backup_table \
+    -k my_keyspace \
+    -t my_table \
+    -d ./backup_table \
     -f json \
     -o backup
     ```
@@ -89,7 +89,7 @@ Küçük ve orta ölçekli ortamlar için idealdir.
     ```
     ./ahtapot.sh -h 127.0.0.1 -P 9042 -u cassandra -p cassandra \
     --all-keyspaces \
-    --directory ./backup_2025_08_11 \
+    -d ./backup_2025_08_11 \
     -o restore
     ```
 
