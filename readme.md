@@ -1,40 +1,40 @@
 # 🐙 AHTAPOT - ScyllaDB/Cassandra Backup & Restore Tool
 
-**AHTAPOT**, ScyllaDB ve Apache Cassandra veritabanları için **kolay, hızlı ve script tabanlı** bir **yedekleme (backup)** ve **geri yükleme (restore)** aracıdır.  
-`dsbulk` ve `cqlsh` kullanarak **şema** (schema) ve **veri** (data) yedeklerini alır ve geri yükler.  
-Küçük ve orta ölçekli ortamlar için idealdir.
+**AHTAPOT** is an **easy, fast, and script-based** **backup** and **restore** tool for ScyllaDB and Apache Cassandra databases.  
+It uses `dsbulk` and `cqlsh` to backup and restore **schema** and **data**.  
+Ideal for small to medium-sized environments.
 
 ---
 
-## 🚀 Özellikler
+## 🚀 Features
 
-- **Tam otomatik** backup & restore
-- Tüm keyspace’ler, belirli bir keyspace veya tek bir tablo ile çalışma
-- Şema ve/veya veri yedekleme seçeneği
-- **json** veya **csv** formatında veri yedekleme
-- **dsbulk** ve **cqlsh** tabanlı
-- **Ahtapot imzalı yedek dosyası** ile geçerli backup kontrolü
-- Yedekleme süresi ölçümü ve raporlama
-
----
-
-## 📦 Gereksinimler
-
-- **ScyllaDB** veya **Apache Cassandra**
-- `cqlsh` erişimi
-- [`dsbulk`](https://github.com/datastax/dsbulk) (DataStax Bulk Loader)
-- Bash (Linux/Unix tabanlı sistemler)
+- Fully automated backup & restore  
+- Works with all keyspaces, a specific keyspace, or a single table  
+- Option to backup schema and/or data  
+- Data backup in **json** or **csv** format  
+- Based on **dsbulk** and **cqlsh**  
+- Valid backup verification with **Ahtapot signed backup file**  
+- Backup duration measurement and reporting  
 
 ---
 
-## 🔧 Kurulum
+## 📦 Requirements
 
-1. Bu repo’yu klonlayın:
+- **ScyllaDB** or **Apache Cassandra**  
+- Access to `cqlsh`  
+- [`dsbulk`](https://github.com/datastax/dsbulk) (DataStax Bulk Loader)  
+- Bash (Linux/Unix based systems)  
+
+---
+
+## 🔧 Installation
+
+1. Clone this repo:  
    ```bash
    git clone https://github.com/mustafazaimoglu/ahtapot.git
    cd ahtapot
 
-   vi ahtapot.sh # dsbluk executable dosyasının yolu verin
+   vi ahtapot.sh # Set the path to the dsbulk executable
    DSBULK=dsbulk-1.11.0/bin/dsbulk
 
    chmod +x ahtapot.sh
@@ -42,7 +42,7 @@ Küçük ve orta ölçekli ortamlar için idealdir.
 --- 
 
 
-## 📂 Yedek Dosya Yapısı
+## 📂 Backup File Structure
 ```bash
   [BACKUP_DIR]
   ├─ [KEYSPACE_NAME]
@@ -56,17 +56,17 @@ Küçük ve orta ölçekli ortamlar için idealdir.
 ```
 --- 
 
-## 📌 Kullanım
-1. Tüm Keyspace’leri Yedekleme
+## 📌 Usage
+1. Backup all keyspaces
     ```
     ./ahtapot.sh -h 127.0.0.1 -P 9042 -u cassandra -p cassandra \
     --all-keyspaces \
-    --directory ./backup_2025_08_11 \
+    --directory ./backup_2025_03_16 \
     --format json \
     --operation backup
     ```
 
-2. Belirli Bir Keyspace’i Yedekleme
+2. Backup a specific keyspace
     ```
     ./ahtapot.sh -h 127.0.0.1 -P 9042 -u cassandra -p cassandra \
     -k my_keyspace \
@@ -75,7 +75,7 @@ Küçük ve orta ölçekli ortamlar için idealdir.
     -o backup
     ```
 
-3. Belirli Bir Tabloyu Yedekleme
+3. Backup a specific table
     ```
     ./ahtapot.sh -h 127.0.0.1 -P 9042 -u cassandra -p cassandra \
     -k my_keyspace \
@@ -85,11 +85,10 @@ Küçük ve orta ölçekli ortamlar için idealdir.
     -o backup
     ```
 
-4. Yedekten Geri Yükleme (Restore)
+4. Restore all keyspaces from backup
     ```
     ./ahtapot.sh -h 127.0.0.1 -P 9042 -u cassandra -p cassandra \
-    --all-keyspaces \
-    -d ./backup_2025_08_11 \
+    -A -d ./backup_2025_03_16 \
     -o restore
     ```
 
