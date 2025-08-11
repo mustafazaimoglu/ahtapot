@@ -22,7 +22,8 @@ Ideal for small to medium-sized environments.
 
 - **ScyllaDB** or **Apache Cassandra**  
 - Access to `cqlsh`  
-- [`dsbulk`](https://github.com/datastax/dsbulk) (DataStax Bulk Loader)  
+- [`dsbulk`](https://github.com/datastax/dsbulk) (DataStax Bulk Loader) 
+- Java (8 or later) 
 - Bash (Linux/Unix based systems)  
 
 ---
