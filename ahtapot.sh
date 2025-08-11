@@ -29,7 +29,7 @@ print_help() {
     echo "  --username, -u          Username (default: cassandra)"
     echo "  --password, -p          Password (default: cassandra)"
     echo "  --no-schema, -S         Do not restore schema (Only restore data)"
-    echo "  --no-data, -D           Do not backup/restore data - (Only schema)"
+    echo "  --no-data, -D           Do not backup/restore data (Only schema)"
     echo "  --all-keyspaces, -A     All keyspaces"
     echo "  --keyspace, -k          Keyspace name"
     echo "  --table, -t             Table name"
