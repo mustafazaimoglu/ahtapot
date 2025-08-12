@@ -1,10 +1,6 @@
 #!/bin/bash
 echo ".....::::: AHTAPOT :::::....."
 
-# Set dsbluk path correctly and make sure it is executable
-DSBULK=dsbulk-1.11.0/bin/dsbulk
-# echo $($DSBULK --version)
-
 print_parameters() {
     echo "HOST: $HOST"
     echo "PORT: $PORT"
@@ -139,7 +135,7 @@ backup_table() {
     local log_path="$full_path/operation"
 
     echo ">>> BACKUP TABLE DATA: $keyspace_name.$table_name"
-    $DSBULK unload -u $USERNAME -p $PASSWORD -h $HOST -port $PORT -cl $CONSISTENCY -k $keyspace_name -t $table_name -url $backup_path -c $FORMAT -logDir $log_path
+    dsbulk unload -u $USERNAME -p $PASSWORD -h $HOST -port $PORT -cl $CONSISTENCY -k $keyspace_name -t $table_name -url $backup_path -c $FORMAT -logDir $log_path
     echo ""
 }
 
@@ -174,7 +170,7 @@ restore_table() {
     mkdir -p $log_path
 
     echo ">>> RESTORE TABLE DATA: $keyspace_name.$table_name"
-    $DSBULK load -u $USERNAME -p $PASSWORD -h $HOST -port $PORT -cl $CONSISTENCY -k $keyspace_name -t $table_name -url $backup_path -c $FORMAT -logDir $log_path
+    dsbulk load -u $USERNAME -p $PASSWORD -h $HOST -port $PORT -cl $CONSISTENCY -k $keyspace_name -t $table_name -url $backup_path -c $FORMAT -logDir $log_path
     echo ""
 }
 
@@ -224,9 +220,15 @@ done
 # print parameters
 # print_parameters
 
-# dsbluk check
-if [ ! -f "$DSBULK" ] || [ ! -x "$DSBULK" ]; then
-    echo "ERROR > dsbulk executable not found or not executable!"
+# cqlsh check
+if ! command -v cqlsh > /dev/null 2>&1; then
+    echo "ERROR > 'cqlsh' not found in PATH. Please install it or update your PATH."
+    exit 1
+fi
+
+# dsbulk check
+if ! command -v dsbulk > /dev/null 2>&1; then
+    echo "ERROR > 'dsbulk' not found in PATH. Please install it or update your PATH."
     exit 1
 fi
 
