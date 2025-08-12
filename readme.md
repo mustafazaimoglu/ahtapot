@@ -21,25 +21,27 @@ Ideal for small to medium-sized environments.
 ## 📦 Requirements
 
 - **ScyllaDB** or **Apache Cassandra**  
-- Access to `cqlsh`  
+- `cqlsh` 
 - [`dsbulk`](https://github.com/datastax/dsbulk) (DataStax Bulk Loader) 
 - Java (8 or later) 
+- Python
 - Bash (Linux/Unix based systems)  
 
 ---
 
 ## 🔧 Installation
 
-1. Clone this repo:  
+1. Clone this repo
    ```bash
    git clone https://github.com/mustafazaimoglu/ahtapot.git
    cd ahtapot
 
-   vi ahtapot.sh # Set the path to the dsbulk executable
-   DSBULK=dsbulk-1.11.0/bin/dsbulk
-
    chmod +x ahtapot.sh
    ```
+
+
+2. Install all the requirements from above
+
 --- 
 
 
