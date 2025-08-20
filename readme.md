@@ -39,8 +39,18 @@ Ideal for small to medium-sized environments.
    chmod +x ahtapot.sh
    ```
 
+2. Install dsbulk (check the [official dsbulk releases](https://github.com/datastax/dsbulk/releases) for possible newer versions)
+   ```bash
+    wget https://github.com/datastax/dsbulk/releases/download/1.11.0/dsbulk-1.11.0.tar.gz
+    tar -xzvf dsbulk-1.11.0.tar.gz
+    mv dsbulk-1.11.0 /opt
 
-2. Install all the requirements from above
+    chmod +x /opt/dsbulk-1.11.0/bin/dsbulk
+
+    ln -s /opt/dsbulk-1.11.0/bin/dsbulk /usr/bin/dsbulk
+   ```
+
+3. Install other requirements from above
 
 --- 
 
