@@ -53,7 +53,7 @@ get_existing_keyspaces_from_db() {
     cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "SELECT keyspace_name FROM system_schema.keyspaces" 2>/dev/null \
     | tail -n +4 | head -n -2 \
     | awk '{$1=$1; print}' \
-    | grep -v -E '^(system|system_schema|system_auth|system_traces|system_distributed_everywhere|system_distributed)$' \
+    | grep -v -E '^(system|system_schema|system_auth|system_traces|system_distributed_everywhere|system_distributed|system_replicated_keys)$' \
     | sort
   )
 }
