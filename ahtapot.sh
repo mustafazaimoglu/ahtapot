@@ -244,6 +244,9 @@ if [[ -z "$DIRECTORY" ]]; then
     exit 1
 fi
 
+# clear last "/"
+DIRECTORY="${DIRECTORY%/}"
+
 # mode control
 OPERATION_MODE=0;
 # 1 = ALL KEYSPACES, 2 = SPECIFIC KEYSPACE, 3 = SPECIFIC TABLE 
