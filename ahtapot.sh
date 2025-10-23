@@ -107,10 +107,12 @@ backup_schema_keyspace() {
     local main_dir="$1"
     local keyspace_name="$2"
     local full_path="$main_dir/$keyspace_name"
+    local output
 
     echo ">>> BACKUP KEYSPACE SCHEMA : $keyspace_name"
-    cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "DESC KEYSPACE \"$keyspace_name\"" 2>/dev/null | head -n 3 > $full_path/keyspace.cql 
-    cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "DESC KEYSPACE \"$keyspace_name\"" 2>/dev/null > $full_path/keyspace_full.cql 
+    output=$(cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -e "DESC KEYSPACE \"$keyspace_name\"" 2>/dev/null)
+    echo "$output" | head -n 3 > $full_path/keyspace.cql
+    echo "$output" > $full_path/keyspace_full.cql
 }
 
 backup_schema_table() {
