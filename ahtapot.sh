@@ -25,14 +25,14 @@ print_help() {
     echo "  --port, -P              Port number (default: 9042)"
     echo "  --username, -u          Username (default: cassandra)"
     echo "  --password, -p          Password (default: cassandra)"
-    echo "  --no-schema, -S         Do not restore schema (Only restore data)"
+    echo "  --no-schema, -S         Do not backup/restore schema (Only data)"
     echo "  --no-data, -D           Do not backup/restore data (Only schema)"
     echo "  --all-keyspaces, -A     All keyspaces"
     echo "  --keyspace, -k          Keyspace name"
     echo "  --table, -t             Table name"
     echo "  --format, -f            Format (json | csv) (default: json)"
     echo "  --directory, -d         Directory path (target for backup, source for restore)"
-    echo "  --operation, -o         Operation type (backup | restore) (required)"
+    echo "  --operation, -o         Operation type (backup | restore)"
     echo "  --consistency, -c       Consistency level (ANY | LOCAL_ONE | ONE | TWO | THREE | LOCAL_QUORUM | QUORUM | EACH_QUORUM | ALL) (default: LOCAL_ONE)"
     echo "  --help, -H              Help"
     echo ""
@@ -146,7 +146,11 @@ restore_schema_keyspace() {
     local ddl_file="$main_dir/$keyspace_name/keyspace.cql"
 
     echo ">>> RESTORE KEYSPACE SCHEMA : $keyspace_name"
-    cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -f $ddl_file
+    if [[ ! -f "$ddl_file" ]]; then
+        echo "ERROR > Keyspace schema file doesn't exist! This might indicate a data-only backup."
+    else 
+        cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -f $ddl_file
+    fi
 }
 
 restore_schema_table() {
@@ -157,7 +161,11 @@ restore_schema_table() {
     local ddl_file="$main_dir/$keyspace_name/$table_name/table.cql"
 
     echo ">>> RESTORE TABLE SCHEMA: $keyspace_name.$table_name"
-    cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -f $ddl_file
+    if [[ ! -f "$ddl_file" ]]; then
+        echo "ERROR > Table schema file doesn't exist! This might indicate a data-only backup."
+    else 
+        cqlsh $HOST $PORT -u $USERNAME -p $PASSWORD -f $ddl_file
+    fi
 }
 
 restore_table() {
@@ -244,6 +252,15 @@ if [[ -z "$DIRECTORY" ]]; then
     exit 1
 fi
 
+# --no-data - no-schema check
+if [[ "$NO_DATA" == true && "$NO_SCHEMA" == true ]]; then
+    echo "ERROR > -D,--no-data and -S,--no-schema cannot be used together!"
+    exit 1
+fi
+
+# CHECK CONNECTION
+check_connection
+
 # clear last "/"
 DIRECTORY="${DIRECTORY%/}"
 
@@ -286,7 +303,7 @@ esac
 if [[ "$OPERATION" == "backup" ]]; then
     # --directory existence check
     if [[ -d $DIRECTORY ]]; then
-        echo "ERROR > Directory exists!"
+        echo "ERROR > Directory exist!"
         exit 1
     fi
 
@@ -302,13 +319,6 @@ if [[ "$OPERATION" == "backup" ]]; then
         ;;
     esac
 
-    if [[ "$NO_SCHEMA" == "true" ]]; then
-        echo "WARNING > -S,--no-schema parameter ignored for operation backup!"
-    fi
-
-    # CHECK CONNECTION
-    check_connection
-
     # BACKUP LOGIC
     create_ahtapot_file $DIRECTORY 
 
@@ -321,11 +331,17 @@ if [[ "$OPERATION" == "backup" ]]; then
             get_tables_in_keyspace_from_db "$ks" EXISTING_TABLES_IN_KEYSPACE
 
             create_directories_for_keyspace $DIRECTORY $ks
-            backup_schema_keyspace $DIRECTORY $ks
+
+            if [[ "$NO_SCHEMA" == "false" ]]; then
+                backup_schema_keyspace $DIRECTORY $ks
+            fi
 
             for tb in "${EXISTING_TABLES_IN_KEYSPACE[@]}"; do
                 create_directories_for_table $DIRECTORY $ks $tb
-                backup_schema_table $DIRECTORY $ks $tb
+
+                if [[ "$NO_SCHEMA" == "false" ]]; then
+                    backup_schema_table $DIRECTORY $ks $tb
+                fi
 
                 if [[ "$NO_DATA" == "false" ]]; then
                     backup_table $DIRECTORY $ks $tb
@@ -334,7 +350,7 @@ if [[ "$OPERATION" == "backup" ]]; then
         done
     elif [[ "$OPERATION_MODE" -eq 2 ]]; then
         if [[ ! " ${EXISTING_KEYSPACES[@]} " =~ " ${KEYSPACE} " ]]; then
-            echo "ERROR > Keyspace '$KEYSPACE' doesn't exists!"
+            echo "ERROR > Keyspace '$KEYSPACE' doesn't exist!"
             exit 1
         fi
 
@@ -342,11 +358,17 @@ if [[ "$OPERATION" == "backup" ]]; then
         get_tables_in_keyspace_from_db "$KEYSPACE" EXISTING_TABLES_IN_KEYSPACE
 
         create_directories_for_keyspace $DIRECTORY $KEYSPACE
-        backup_schema_keyspace $DIRECTORY $KEYSPACE
+
+        if [[ "$NO_SCHEMA" == "false" ]]; then
+            backup_schema_keyspace $DIRECTORY $KEYSPACE
+        fi
 
         for tb in "${EXISTING_TABLES_IN_KEYSPACE[@]}"; do
             create_directories_for_table $DIRECTORY $KEYSPACE $tb
-            backup_schema_table $DIRECTORY $KEYSPACE $tb
+
+            if [[ "$NO_SCHEMA" == "false" ]]; then
+                backup_schema_table $DIRECTORY $KEYSPACE $tb
+            fi
 
             if [[ "$NO_DATA" == "false" ]]; then
                 backup_table $DIRECTORY $KEYSPACE $tb
@@ -354,7 +376,7 @@ if [[ "$OPERATION" == "backup" ]]; then
         done
     elif [[ "$OPERATION_MODE" -eq 3 ]]; then
         if [[ ! " ${EXISTING_KEYSPACES[@]} " =~ " ${KEYSPACE} " ]]; then
-            echo "ERROR > Keyspace '$KEYSPACE' doesn't exists!"
+            echo "ERROR > Keyspace '$KEYSPACE' doesn't exist!"
             exit 1
         fi
 
@@ -362,15 +384,17 @@ if [[ "$OPERATION" == "backup" ]]; then
         get_tables_in_keyspace_from_db "$KEYSPACE" EXISTING_TABLES_IN_KEYSPACE
 
         if [[ ! " ${EXISTING_TABLES_IN_KEYSPACE[@]} " =~ " ${TABLE} " ]]; then
-            echo "ERROR > Table '$KEYSPACE'.'$TABLE' doesn't exists!"
+            echo "ERROR > Table '$KEYSPACE'.'$TABLE' doesn't exist!"
             exit 1
         fi
         
         create_directories_for_keyspace $DIRECTORY $KEYSPACE
-        backup_schema_keyspace $DIRECTORY $KEYSPACE
-
         create_directories_for_table $DIRECTORY $KEYSPACE $TABLE
-        backup_schema_table $DIRECTORY $KEYSPACE $TABLE
+
+        if [[ "$NO_SCHEMA" == "false" ]]; then
+            backup_schema_keyspace $DIRECTORY $KEYSPACE
+            backup_schema_table $DIRECTORY $KEYSPACE $TABLE
+        fi
 
         if [[ "$NO_DATA" == "false" ]]; then
             backup_table $DIRECTORY $KEYSPACE $TABLE
@@ -387,14 +411,6 @@ elif [[ "$OPERATION" == "restore" ]]; then
         echo "ERROR > This is not a valid backup!"
         exit 1
     fi
-
-    if [[ "$NO_DATA" == true && "$NO_SCHEMA" == true ]]; then
-        echo "ERROR > -D,--no-data and -S,--no-schema cannot be used together!"
-        exit 1
-    fi
-
-    # CHECK CONNECTION
-    check_connection
 
     # RESTORE LOGIC
     FORMAT=$(head -n 1 $DIRECTORY/ahtapot)
@@ -424,7 +440,7 @@ elif [[ "$OPERATION" == "restore" ]]; then
         done
     elif [[ "$OPERATION_MODE" -eq 2 ]]; then
         if [[ ! " ${EXISTING_KEYSPACES_RESTORE[@]} " =~ " ${KEYSPACE} " ]]; then
-            echo "ERROR > Keyspace '$KEYSPACE' doesn't exists in the backup!"
+            echo "ERROR > Keyspace '$KEYSPACE' doesn't exist in the backup!"
             exit 1
         fi
 
@@ -446,7 +462,7 @@ elif [[ "$OPERATION" == "restore" ]]; then
         done
     elif [[ "$OPERATION_MODE" -eq 3 ]]; then
         if [[ ! " ${EXISTING_KEYSPACES_RESTORE[@]} " =~ " ${KEYSPACE} " ]]; then
-            echo "ERROR > Keyspace '$KEYSPACE' doesn't exists in the backup!"
+            echo "ERROR > Keyspace '$KEYSPACE' doesn't exist in the backup!"
             exit 1
         fi
 
@@ -454,7 +470,7 @@ elif [[ "$OPERATION" == "restore" ]]; then
         get_directories_from_dir "$DIRECTORY/$KEYSPACE" EXISTING_TABLES_IN_KEYSPACE_RESTORE
 
         if [[ ! " ${EXISTING_TABLES_IN_KEYSPACE_RESTORE[@]} " =~ " ${TABLE} " ]]; then
-            echo "ERROR > Table '$KEYSPACE'.'$TABLE' doesn't exists in the backup!"
+            echo "ERROR > Table '$KEYSPACE'.'$TABLE' doesn't exist in the backup!"
             exit 1
         fi
 
